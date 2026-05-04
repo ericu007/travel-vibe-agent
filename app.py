@@ -60,7 +60,8 @@ ORCHESTRATOR_PROMPT = """You are the VibeTrip Orchestrator. Your only job is to 
 INTENTS:
 - LOG_CHECKIN: User wants to log a place they visited on a trip (mentions a place name, food spot, attraction, hotel, etc.)
 - ANALYZE_VIBE: User wants to understand their travel style or see their traveler profile
-- PLAN_TRIP: User wants to plan a trip to a new destination
+- PLAN_TRIP: User wants to plan a regular trip to a new destination
+- CREATOR_TRIP: User wants to plan a trip focused on content creation, photography, Instagram-worthy spots, aesthetic food, or influencer-style travel
 - VIEW_TRIPS: User wants to see their past trips or check-in history
 - LOAD_DEMO: User wants to load sample/demo trip data to try the app (says things like "load demo", "use sample data", "load example trips", "show me a demo")
 - GENERAL: Greetings, questions about how VibeTrip works, or anything else
@@ -81,11 +82,14 @@ User: "Plan me 5 days in Barcelona"
 User: "Plan me a luxury trip to Paris"
 {"intent": "PLAN_TRIP", "summary": "User wants a luxury 4-day itinerary for Paris"}
 
-User: "Can you plan something more adventurous and outdoorsy in New Zealand?"
-{"intent": "PLAN_TRIP", "summary": "User wants an adventure/outdoorsy trip to New Zealand"}
+User: "Plan me a content creator trip to Tokyo, I want great photo spots"
+{"intent": "CREATOR_TRIP", "summary": "User wants a photography and content-focused itinerary for Tokyo"}
 
-User: "Plan me a romantic weekend in Rome"
-{"intent": "PLAN_TRIP", "summary": "User wants a romantic weekend itinerary for Rome"}
+User: "I'm an influencer planning a trip to Bali, need Instagram-worthy spots and aesthetic cafes"
+{"intent": "CREATOR_TRIP", "summary": "User wants a creator-focused itinerary for Bali with photogenic spots"}
+
+User: "Plan me a trip to Paris focused on aesthetic food and famous photo locations"
+{"intent": "CREATOR_TRIP", "summary": "User wants a creator trip to Paris with aesthetic food and iconic photo spots"}
 
 User: "Show me all my trips"
 {"intent": "VIEW_TRIPS", "summary": "User wants to see their logged trip history"}
@@ -483,6 +487,11 @@ async def orchestrate(user_message: str, history: list, user_id: str) -> AsyncGe
             yield chunk
         return
 
+    if intent == "CREATOR_TRIP":
+        async for chunk in run_creator_planner(messages, user_id):
+            yield chunk
+        return
+
     async for chunk in run_agent(system, messages, user_id, use_tools=use_tools):
         yield chunk
 
@@ -501,7 +510,11 @@ First, read the user's message carefully for any vibe override — phrases like:
 Call these tools in order:
 1. get_vibe_profile — get the user's stored travel style
 2. get_weather — get weather for the destination and month the user mentioned
-3. search_places — search 3-4 times for places matching the destination. If the user specified a vibe override, use that for searches instead of their stored profile (e.g. if they said "luxury", search for "luxury hotels Barcelona" not budget ones)
+3. search_places — search 4-5 times for places matching the destination:
+   - Search for food spots / restaurants matching their vibe
+   - Search for sightseeing and cultural attractions
+   - Search for the best and safest neighborhoods to stay in for the destination (e.g. "safest neighborhoods to stay Barcelona" or "best quiet neighborhoods Barcelona accommodation") — this helps the planner recommend a convenient, safe, and appropriately noisy/quiet base
+   - If the user specified a vibe override, adjust accordingly (e.g. "luxury safe neighborhoods Barcelona", "budget safe areas Barcelona Airbnb")
 4. get_transport_options — get transport recommendations
 
 After calling all tools, output a single line: DONE
@@ -517,16 +530,28 @@ Important: Read the user's original request carefully.
 - The personalisation_note should acknowledge if you're doing something different: e.g. "Switching it up from your usual budget style — here's a luxury take on Barcelona!"
 
 SLOT REQUIREMENTS PER DAY — this is mandatory:
-Each day MUST have at least 5 slots in this order:
-1. Morning — a sightseeing, culture, museum, or nature activity
-2. Lunch — a specific restaurant or food spot (category: food)
-3. Afternoon — a sightseeing, culture, shopping, or entertainment activity
-4. Dinner — a specific restaurant or food spot (category: food), different from lunch
-5. Evening — optional nightlife, dessert spot, bar, or evening activity
-Breakfast is optional but encouraged — add it before Morning if relevant (e.g. a famous local cafe or market)
+Each day MUST have at least 6 slots in this order:
+1. Breakfast (optional but encouraged) — a specific local café, bakery, or market
+2. Morning — a sightseeing, culture, museum, or nature activity
+3. Lunch — a specific restaurant or food spot (category: food)
+4. Afternoon — a sightseeing, culture, shopping, or entertainment activity
+5. Dinner — a specific restaurant or food spot (category: food), different from lunch
+6. Evening — optional nightlife, dessert spot, bar, or evening walk
+
+ACCOMMODATION — mandatory on Day 1, optional reminder on other days:
+- Before suggesting accommodation, look at which neighborhoods the Day 1 and Day 2 activities are concentrated in
+- Recommend staying IN or directly adjacent to those neighborhoods for maximum convenience (less transit, more walking)
+- CRITICALLY evaluate each neighborhood on three factors:
+  1. Convenience — walkability to planned activities, nearby metro lines
+  2. Safety — avoid neighborhoods known for pickpocketing, nighttime safety concerns, or high tourist crime. Always note the safety level explicitly (e.g. "generally safe", "exercise normal caution", "avoid at night")
+  3. Noise level — distinguish between lively/loud (Las Ramblas, Barceloneta at night) vs. quiet/residential (Gràcia, Eixample side streets). Match to the user's pace: fast-paced travelers may not mind noise, slow/relaxed travelers should be in quieter areas
+- Suggest a specific hotel, hostel, OR Airbnb neighborhood with Airbnb search tips (e.g. "search Airbnb for El Born, filter for apartments away from main streets for quieter nights")
+- Match to the user's budget_style: budget → hostel or Airbnb shared, mid → boutique hotel or private Airbnb apartment, luxury → 5-star hotel
+- Explain the tradeoffs clearly: convenience vs. quiet vs. price
+- For remaining days, do NOT repeat the accommodation slot unless they're changing areas
 
 Food slots must name SPECIFIC restaurants or food spots, not generic descriptions like "find a local restaurant".
-Reference the user's past food experiences to guide choices (e.g. if they loved ramen and street food, suggest similar casual spots).
+Reference the user's past food experiences to guide choices.
 
 Rules:
 - Output ONLY valid JSON. No markdown. No prose. No explanation. No backticks.
@@ -606,6 +631,16 @@ Rules:
           "transport": "walk",
           "est_cost": "Free",
           "image_search_query": "Barcelona port sunset promenade evening"
+        },
+        {
+          "time_of_day": "Accommodation",
+          "place_name": "Airbnb or boutique hotel in El Born / Sant Pere",
+          "category": "accommodation",
+          "description": "El Born is the sweet spot for this itinerary — walkable to Gothic Quarter, Picasso Museum, and beach. Safety: generally safe, well-lit streets, normal tourist precautions apply. Noise: moderate — lively bar scene on main streets, but side streets are quiet after midnight. Tip: on Airbnb, search El Born and filter for apartments on Carrer del Rec or Carrer de la Princesa for quieter stays. Boutique option: Hotel Curiositat (~$110/night).",
+          "why_it_fits": "Central base that cuts transit time — same logic as your DoubleTree in Ariake being a subway hub for all of Tokyo",
+          "transport": "walk",
+          "est_cost": "$80–130/night",
+          "image_search_query": "El Born Barcelona neighborhood street apartment"
         }
       ]
     }
@@ -615,6 +650,108 @@ Rules:
 }
 """
 
+
+CREATOR_GATHER_PROMPT = """You are a travel data gatherer for content creators and influencers. Your ONLY job is to call tools to collect data for a photography and content-focused trip.
+
+Call these tools in order:
+1. get_vibe_profile — get the user's stored travel style (used for budget and transport matching)
+2. get_weather — get weather for the destination and month (lighting conditions matter for photography)
+3. search_places — search 5-6 times specifically for content creator needs:
+   - "most photogenic spots [destination]" or "best photography locations [destination]"
+   - "Instagram famous spots [destination]"
+   - "aesthetic cafes [destination]" or "most beautiful restaurants [destination]"
+   - "hidden gem photo spots [destination]" — unique locations not everyone has shot
+   - "best street photography areas [destination]"
+   - "aesthetic food [destination]" or "most beautiful plated food restaurants [destination]"
+4. get_transport_options — get transport recommendations
+
+After calling all tools, output a single line: DONE
+Do not write any itinerary. Do not explain anything. Just call tools then say DONE.
+"""
+
+CREATOR_JSON_PROMPT = """You are a travel itinerary formatter for content creators and influencers. You will receive collected travel data and must output ONLY a JSON object.
+
+This itinerary is specifically designed around:
+1. PHOTOGRAPHY SPOTS — iconic, aesthetic, and hidden-gem locations with great visual potential
+2. CONTENT TIMING — the best time of day to visit each spot for optimal lighting (golden hour, blue hour, avoiding crowds)
+3. AESTHETIC FOOD — restaurants and cafes where the food presentation is stunning and photogenic
+4. CONTENT ANGLES — specific tips on what to shoot and how at each location
+5. ACCOMMODATION — stylish, photogenic hotels or Airbnbs that are themselves content-worthy
+
+For every slot include:
+- best_time_to_shoot: optimal lighting time (e.g. "Golden hour 6–7am", "Blue hour 7–8pm", "Midday for interior shots")
+- content_tip: specific photography or content tip (e.g. "Shoot from the corner for the symmetry shot", "Order the croissant — it has the best plating", "Use the arch as a natural frame")
+- crowd_level: expected crowd level at that time ("quiet", "moderate", "busy — arrive early")
+
+Rules:
+- Output ONLY valid JSON. No markdown. No prose. No explanation. No backticks.
+- Start your response with { and end with }
+- Follow this exact schema:
+
+{
+  "destination": "Barcelona, Spain",
+  "duration_days": 4,
+  "travel_month": "June",
+  "weather_summary": "Warm and sunny, avg 25°C — excellent golden hour light",
+  "packing_tips": ["Wide-angle lens or phone gimbal", "Neutral outfit colors for architecture shots", "Portable charger for all-day shooting"],
+  "vibe_tags": ["content creator", "aesthetic", "photography", "foodie"],
+  "creator_note": "Barcelona in June has long golden hours (8–9pm) — plan your outdoor hero shots for late afternoon",
+  "personalisation_note": "Based on your Japan trips, you love intimate local spots over tourist traps — perfect for unique content angles",
+  "days": [
+    {
+      "day": 1,
+      "title": "Gothic Quarter & El Born",
+      "theme": "Architecture & Aesthetic Food",
+      "slots": [
+        {
+          "time_of_day": "Golden Hour Morning",
+          "place_name": "Plaça de Sant Felip Neri",
+          "category": "sightseeing",
+          "description": "Hidden Gothic square with centuries-old architecture and a beautiful fountain — almost no tourists at 7am",
+          "why_it_fits": "Unique, non-touristy shot that will stand out on any feed",
+          "transport": "walk",
+          "est_cost": "Free",
+          "image_search_query": "Placa Sant Felip Neri Barcelona morning golden light",
+          "best_time_to_shoot": "6:30–8:00am — warm golden light hits the stone walls perfectly",
+          "content_tip": "Stand at the far end of the square and shoot toward the fountain with the archway framing the shot. Wear neutral tones so you don't clash with the stone.",
+          "crowd_level": "quiet — locals only at this hour"
+        },
+        {
+          "time_of_day": "Breakfast",
+          "place_name": "Federal Café",
+          "category": "food",
+          "description": "Iconic brunch spot known for its impeccably plated avocado toast, fluffy pancakes, and latte art",
+          "why_it_fits": "Every dish is designed to photograph — the kind of food content that gets saves",
+          "transport": "walk",
+          "est_cost": "$12–18",
+          "image_search_query": "Federal Cafe Barcelona avocado toast latte art aesthetic",
+          "best_time_to_shoot": "9–10am — window seats get beautiful soft natural light",
+          "content_tip": "Request a window seat. Order the smashed avo and the flat white — shoot from directly above for the flat lay, then from the side for the latte art reveal.",
+          "crowd_level": "moderate — arrives after 10am so go early"
+        },
+        {
+          "time_of_day": "Accommodation",
+          "place_name": "Boutique Hotel or Airbnb in El Born",
+          "category": "accommodation",
+          "description": "For creator trips, the accommodation IS content — look for Airbnbs with exposed brick walls, terrace views, or rooftop access. El Born has beautiful converted apartments perfect for morning room content. Safety: generally safe, well-lit. Noise: moderate, quieter on side streets.",
+          "why_it_fits": "A photogenic room gives you content before you even leave — and El Born puts you walking distance from every Day 1 and Day 2 location",
+          "transport": "walk",
+          "est_cost": "$90–150/night",
+          "image_search_query": "El Born Barcelona apartment terrace aesthetic interior",
+          "best_time_to_shoot": "Morning — natural light through windows for room content",
+          "content_tip": "Search Airbnb for 'El Born terrace' or 'Barcelona loft exposed brick' — filter by photos to find the most aesthetic space.",
+          "crowd_level": "n/a"
+        }
+      ]
+    }
+  ],
+  "best_photo_spots_summary": ["Bunkers del Carmel at sunset", "Park Güell mosaics at golden hour", "Barceloneta beach at blue hour"],
+  "aesthetic_food_picks": ["Federal Café for brunch flat lays", "Bar del Pla for rustic tapas shots", "Espai Mescladís for colorful market content"],
+  "content_calendar_tips": "Post golden hour architecture shots in the morning, food content at lunch, lifestyle/people shots in the afternoon, sunset skyline shots in the evening.",
+  "what_to_buy": ["Local ceramics from El Born for flat lay props", "Espadrilles — iconic Barcelona shot"],
+  "hidden_gems": ["Carrer del Parlament murals in Sant Antoni — vibrant street art, almost no tourists"]
+}
+"""
 
 async def run_planner(messages: list, user_id: str) -> AsyncGenerator[str, None]:
     """
@@ -772,6 +909,127 @@ If the user requested a specific vibe (luxury, adventure, romantic, etc.), prior
         yield f"data: {json.dumps({'type': 'error', 'content': f'Failed to generate itinerary: {str(e)}'})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+
+async def run_creator_planner(messages: list, user_id: str) -> AsyncGenerator[str, None]:
+    """
+    Two-phase content creator planner:
+    Phase 1 — gather photogenic spots, aesthetic food, and creator-focused data
+    Phase 2 — generate creator JSON itinerary with photo tips and content angles
+    """
+    yield f"data: {json.dumps({'type': 'intent', 'intent': 'CREATOR_TRIP'})}\n\n"
+
+    from tools import get_trip_history, get_vibe_profile
+    trip_data    = get_trip_history(user_id)
+    vibe_data    = get_vibe_profile(user_id)
+    vibe_profile = vibe_data.get("vibe_profile")
+    trips        = trip_data.get("trips", {})
+    last_msg     = messages[-1]["content"] if messages else ""
+
+    # Phase 1 — gather creator-focused data with tools
+    vertex_tools = _build_vertex_tools(TOOL_DECLARATIONS)
+    gather_model = GenerativeModel(
+        MODEL,
+        system_instruction=CREATOR_GATHER_PROMPT,
+        tools=vertex_tools,
+        generation_config=GenerationConfig(temperature=0.2),
+    )
+    history_contents = _history_to_contents(messages[:-1])
+    chat = gather_model.start_chat(history=history_contents)
+    current_message = last_msg
+    gathered_context = []
+
+    for round_num in range(10):
+        yield f"data: {json.dumps({'type': 'heartbeat', 'round': round_num})}\n\n"
+        try:
+            response = await asyncio.wait_for(
+                asyncio.to_thread(chat.send_message, current_message),
+                timeout=60.0
+            )
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
+            return
+
+        candidate = response.candidates[0]
+        has_tool_calls = False
+        tool_results = []
+
+        for part in candidate.content.parts:
+            if hasattr(part, "text") and part.text and "DONE" in part.text:
+                break
+            fc = getattr(part, "function_call", None)
+            if fc is None:
+                continue
+            fn_name = getattr(fc, "name", None)
+            if not fn_name:
+                continue
+
+            has_tool_calls = True
+            fn_args = dict(fc.args) if fc.args else {}
+            yield f"data: {json.dumps({'type': 'tool_call', 'tool': fn_name, 'args': fn_args})}\n\n"
+            result = await asyncio.to_thread(dispatch_tool, fn_name, fn_args, user_id)
+            gathered_context.append(f"[{fn_name}]\n{result}")
+            yield f"data: {json.dumps({'type': 'tool_result', 'tool': fn_name, 'result': result[:200]})}\n\n"
+            tool_results.append(Part.from_function_response(
+                name=fn_name,
+                response={"content": json.loads(result)},
+            ))
+
+        if not has_tool_calls:
+            break
+        current_message = tool_results if len(tool_results) > 1 else tool_results[0]
+
+    # Phase 2 — generate creator-focused JSON
+    yield f"data: {json.dumps({'type': 'heartbeat', 'round': 99})}\n\n"
+
+    trip_names  = list(trips.keys())
+    place_names = []
+    for t in trips.values():
+        place_names += [c["place_name"] for c in t.get("checkins", [])[:5]]
+
+    context_summary = f"""USER REQUEST: {last_msg}
+
+USER VIBE PROFILE:
+{json.dumps(vibe_profile, indent=2) if vibe_profile else "No stored profile — use budget-conscious defaults"}
+
+PAST TRIPS: {", ".join(trip_names) if trip_names else "None"}
+PLACES THEY VISITED: {", ".join(place_names) if place_names else "None"}
+
+CREATOR-FOCUSED GATHERED DATA:
+{chr(10).join(gathered_context) if gathered_context else "No live data gathered"}
+
+Create a content-creator focused itinerary. Every slot MUST include best_time_to_shoot, content_tip, and crowd_level.
+Food slots must have stunning visual presentation. Photo spots must include specific camera angles and framing tips."""
+
+    json_model = GenerativeModel(
+        MODEL,
+        system_instruction=CREATOR_JSON_PROMPT,
+        generation_config=GenerationConfig(
+            temperature=0.8,
+            response_mime_type="application/json",
+        ),
+    )
+
+    try:
+        json_response = await asyncio.wait_for(
+            asyncio.to_thread(json_model.generate_content, context_summary),
+            timeout=90.0
+        )
+        raw_json = json_response.text.strip()
+        clean    = _extract_json(raw_json)
+        try:
+            parsed = json.loads(clean)
+            from tools import save_planned_trip
+            parsed["trip_type"] = "creator"
+            save_planned_trip(user_id, parsed)
+        except Exception:
+            pass
+        yield f"data: {json.dumps({'type': 'text', 'content': clean})}\n\n"
+    except Exception as e:
+        yield f"data: {json.dumps({'type': 'error', 'content': f'Failed to generate creator itinerary: {str(e)}'})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
 
 async def run_critic(itinerary: str, user_id: str) -> AsyncGenerator[str, None]:
     """

@@ -2,7 +2,7 @@
 
 An AI-powered travel agent that learns your travel personality from past trips and uses it to plan hyper-personalized itineraries for new destinations. Log where you've been, analyze your vibe, and get a trip plan that actually matches how you travel.
 
-**Live URL:** `https://<your-gcp-url>`  
+**Live URL:** `https://travel-vibe-agent-203861284458.us-central1.run.app`  
 **Model:** `gemini-2.5-flash` via Vertex AI  
 **Stack:** FastAPI · Python 3.11 · Vertex AI SDK · Vanilla JS + HTML
 
@@ -65,11 +65,12 @@ Then open `http://localhost:8080` in your browser.
 
 ### Quick Demo Flow
 
-1. Click **"Load demo trips"** in the welcome screen or sidebar — this seeds Japan 2025 and Los Angeles 2025 trip data
+1. Click **"Load demo trips"** in the welcome screen or sidebar — seeds Japan 2025 and Los Angeles 2025 trip data
 2. Say **"Analyze my travel vibe"** — the Vibe Analyzer reads all past trips and builds your traveler profile
-3. Say **"Plan me a 4 day trip to Barcelona for June"** — the planner generates a personalized itinerary as visual journey cards
+3. Say **"Plan me a 4 day trip to Barcelona for June"** — generates a personalized itinerary as visual journey cards
 4. Click **"Review it"** in the Critic panel — the Generator-Critic agent checks the itinerary against your profile and flags mismatches
-5. Approve or ask to regenerate with fixes
+5. Say **"Plan me a creator trip to Tokyo"** — switches to Creator Mode with photo spots, content tips, and aesthetic food picks
+6. View saved plans anytime from the **"✈ Planned trips"** section in the sidebar
 
 ---
 
@@ -196,26 +197,46 @@ In production this would be replaced with a persistent store (PostgreSQL, Redis,
 **File:** `tools.py`, `app.py`  
 **Functions:** `dispatch_tool()`, `TOOL_DECLARATIONS`, `_build_vertex_tools()`
 
-Six tools are registered and callable by agents at runtime:
+Eight tools are registered and callable by agents at runtime:
 
-| Tool | Purpose |
-|---|---|
-| `save_checkin` | Persist a place visit to trip history |
-| `get_trip_history` | Retrieve all past trips and check-ins |
-| `get_vibe_profile` / `save_vibe_profile` | Read and write the traveler profile |
-| `search_places` | Query Google Places API (or mock) for real venues |
-| `get_transport_options` | Return transport recommendations by mode |
-| `get_weather` | Fetch historical climate averages from Open-Meteo API |
+| Tool | File | Purpose |
+|---|---|---|
+| `save_checkin` | `tools.py` | Persist a place visit with category, price tier, transport, date, notes |
+| `get_trip_history` | `tools.py` | Retrieve all past trips and check-ins for a user |
+| `get_vibe_profile` | `tools.py` | Read the stored traveler profile |
+| `save_vibe_profile` | `tools.py` | Write the synthesized traveler profile after analysis |
+| `save_planned_trip` | `tools.py` | Auto-save a completed itinerary to the user's planned trips list |
+| `get_planned_trips` | `tools.py` | Retrieve all AI-planned itineraries for sidebar display |
+| `search_places` | `tools.py` | Query Google Places API (or mock fallback) for real venues |
+| `get_transport_options` | `tools.py` | Return transport recommendations matched to user's preferred mode |
+| `get_weather` | `tools.py` | Fetch historical climate averages from Open-Meteo API — used at planning time |
 
-Tool declarations are defined in `TOOL_DECLARATIONS` (tools.py) and converted to Vertex AI `FunctionDeclaration` objects by `_build_vertex_tools()` (app.py). Tool dispatch is handled by `dispatch_tool()` which routes by name and injects `user_id` context.
+Tool declarations are defined in `TOOL_DECLARATIONS` (`tools.py`) and converted to Vertex AI `FunctionDeclaration` objects by `_build_vertex_tools()` (`app.py`). Tool dispatch is handled by `dispatch_tool()` which routes by name and injects `user_id` context. The in-memory store (`USER_DATA` dict, `tools.py`) is keyed by `user_id` and holds three namespaces per user: `trips`, `vibe_profile`, and `planned_trips`.
 
 ---
 
 ### 9. Constrained / Structured Output
 **File:** `app.py`  
-**Functions:** `run_planner()`, `_extract_json()`, `PLANNER_JSON_PROMPT`
+**Functions:** `run_planner()`, `run_creator_planner()`, `_extract_json()`, `PLANNER_JSON_PROMPT`, `CREATOR_JSON_PROMPT`
 
-The Planner's Phase 2 uses `response_mime_type: "application/json"` in Vertex AI's `GenerationConfig` to constrain the model to valid JSON output. This is separated from Phase 1 (tool calling) because Vertex AI does not support both tool calling and JSON mode simultaneously. The `_extract_json()` post-processor strips any residual markdown fences as a safety net. The frontend detects JSON responses and renders them as rich journey cards rather than plain text.
+Both the Planner and Creator Planner use a two-phase approach to enforce JSON output. Phase 2 uses `response_mime_type: "application/json"` in Vertex AI's `GenerationConfig` — this is intentionally separated from Phase 1 (tool calling) because Vertex AI does not support both simultaneously. The `_extract_json()` post-processor strips any residual markdown fences as a safety net. The frontend detects JSON responses by checking for `{` and `"days"` and renders them as rich journey cards.
+
+---
+
+### 10. Creator Trip Mode (Specialist Agent Variant)
+**File:** `app.py`  
+**Functions:** `run_creator_planner()`, `CREATOR_GATHER_PROMPT`, `CREATOR_JSON_PROMPT`  
+**Intent:** `CREATOR_TRIP` (classified by `ORCHESTRATOR_PROMPT`)
+
+A dedicated trip planning mode for content creators and influencers, implemented as a fully separate two-phase agent with its own gather and JSON prompts. The orchestrator classifies requests mentioning photography, Instagram, aesthetic food, or influencer travel as `CREATOR_TRIP` and routes to `run_creator_planner()`.
+
+The Creator gather phase runs 5–6 targeted searches for photogenic spots, Instagram-famous locations, aesthetic cafes, hidden gem photo locations, and visually stunning food. The JSON phase produces itinerary slots with three additional fields not present in regular trips:
+
+- `best_time_to_shoot` — optimal lighting window (golden hour, blue hour, soft morning light)
+- `content_tip` — specific framing, angle, and composition advice per location
+- `crowd_level` — expected crowd density at the recommended shooting time
+
+The frontend renders Creator trips with a distinct dark purple `#1a1a2e` theme and a `📸 CREATOR MODE` badge, plus additional sections for Top Photo Spots, Aesthetic Food Picks, and a Content Calendar summary.
 
 ---
 
@@ -242,32 +263,37 @@ FastAPI (app.py)
         │
         ▼
    orchestrate()
-   ┌────────────────────────────────────────────────┐
-   │  ORCHESTRATOR_PROMPT (Gemini 2.5 Flash, t=0.1) │
-   │  Classifies intent → routes to specialist       │
-   └────────┬───────────────────────────────────────┘
+   ┌─────────────────────────────────────────────────────┐
+   │  ORCHESTRATOR_PROMPT (Gemini 2.5 Flash, t=0.1)      │
+   │  Classifies intent → routes to specialist            │
+   └────────┬────────────────────────────────────────────┘
             │
-    ┌───────┴────────┬──────────────┬──────────────┐
-    ▼                ▼              ▼              ▼
-Logger Agent    Vibe Analyzer   run_planner()  Critic Agent
-(run_agent)     (run_agent)                   (run_critic)
-    │                │           ┌──────────────────┐
-    │                │           │ Phase 1: Gather  │
-    ▼                ▼           │ (tools + LLM)    │
-tools.py         tools.py        │                  │
-save_checkin  get_trip_history   │ Phase 2: Format  │
-              save_vibe_profile  │ (JSON only, LLM) │
-                                 └──────────────────┘
-                                          │
-                                     tools.py
-                              search_places, get_weather
-                              get_transport_options
+    ┌───────┴──────┬──────────────┬───────────────┬──────────────┐
+    ▼              ▼              ▼               ▼              ▼
+Logger Agent  Vibe Analyzer  run_planner()  run_creator_   Critic Agent
+(run_agent)   (run_agent)                  planner()      (run_critic)
+    │              │          ┌──────────┐  ┌──────────┐
+    ▼              ▼          │ Phase 1  │  │ Phase 1  │
+tools.py      tools.py        │ Gather   │  │ Creator  │
+save_checkin  get_trip_       │ (tools)  │  │ Gather   │
+              history         │          │  │ (tools)  │
+              save_vibe_      │ Phase 2  │  │          │
+              profile         │ JSON LLM │  │ Phase 2  │
+                              └────┬─────┘  │ JSON LLM │
+                                   │        └────┬─────┘
+                              tools.py           │
+                         search_places      tools.py
+                         get_weather        search_places
+                         get_transport_     get_weather
+                         options            save_planned_trip
+                         save_planned_trip
 ```
 
 ---
 
 ## Known Limitations
 
-- **In-memory storage** — all user data resets on server restart. Production would use a persistent database.
-- **Images** — activity photos come from [Picsum Photos](https://picsum.photos) (random beautiful photos seeded by place name). Production would use Google Places Photos API for real venue images.
+- **In-memory storage** — all user data resets on server restart. Production would use a persistent database (PostgreSQL, Redis, or Firestore).
+- **Images** — activity photos come from [Picsum Photos](https://picsum.photos) (consistent random photos seeded by place name). Production would use Google Places Photos API for real venue imagery.
 - **Location tracking** — check-ins are manual. A production app would use GPS from a native mobile client.
+- **Creator photo spots** — photo location data comes from Google Places text search. A production version would integrate with a dedicated photography spots API or curated database.

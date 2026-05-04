@@ -834,6 +834,10 @@
           <div class="qa-icon" style="background:rgba(90,122,94,0.2)">🗺️</div>
           Plan a new trip
         </button>
+        <button class="qa-btn" onclick="openCreatorModal()">
+          <div class="qa-icon" style="background:rgba(155,89,182,0.2)">📸</div>
+          Creator trip
+        </button>
       </div>
 
       <div class="trips-panel" id="sidebar-trips">
@@ -879,6 +883,7 @@
           <button class="welcome-chip" onclick="sendQuick('I just had amazing ramen at Ichiran in Tokyo, Japan trip')">📍 Log Tokyo ramen spot</button>
           <button class="welcome-chip" onclick="sendQuick('Analyze my travel vibe from my past trips')">🧠 Analyze my vibe</button>
           <button class="welcome-chip" onclick="sendQuick('Plan me 5 days in Barcelona based on my travel style')">🗺️ Plan Barcelona trip</button>
+          <button class="welcome-chip" onclick="openCreatorModal()">📸 Creator trip</button>
           <button class="welcome-chip" onclick="sendQuick('How does VibeTrip work?')">💬 How does this work?</button>
         </div>
       </div>
@@ -967,9 +972,13 @@
 
   // ── Send message ─────────────────────────────────────────
   async function sendMessage(overrideText) {
-    if (isStreaming) return;
-    const text = overrideText || $input.value.trim();
+    const text = (overrideText || $input.value || '').trim();
     if (!text) return;
+    if (isStreaming) {
+      // Force-unlock if somehow stuck, then proceed
+      isStreaming = false;
+      $sendBtn.disabled = false;
+    }
 
     $input.value = '';
     $input.style.height = 'auto';
@@ -982,7 +991,6 @@
 
     let accText = '';
     let intentShown = false;
-    let toolsShown = [];
 
     try {
       const resp = await fetch('/chat', {
@@ -990,6 +998,8 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text, history, user_id: USER_ID }),
       });
+
+      if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
 
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
@@ -1008,120 +1018,101 @@
           let evt;
           try { evt = JSON.parse(line.slice(6)); } catch { continue; }
 
+          if (evt.type === 'heartbeat') {
+            bubble.querySelector('.typing') && (bubble.querySelector('.typing').style.opacity = '1');
+          }
+
           if (evt.type === 'trip_journal') {
             bubble.querySelector('.typing')?.remove();
-            let textDiv = bubble.querySelector('.response-text');
-            if (!textDiv) {
-              textDiv = document.createElement('div');
-              textDiv.className = 'response-text';
-              bubble.appendChild(textDiv);
-            }
-            textDiv.innerHTML = renderTripJournal(evt.trips);
+            let div = bubble.querySelector('.response-text') || bubble.appendChild(Object.assign(document.createElement('div'), {className:'response-text'}));
+            div.innerHTML = renderTripJournal(evt.trips);
             scrollBottom();
           }
 
-          if (evt.type === 'heartbeat') {
-            // Keep the typing indicator alive — we're still working
-            const existing = bubble.querySelector('.typing');
-            if (existing) existing.style.opacity = '1';
-          }
-
           if (evt.type === 'intent' && !intentShown) {
+            intentShown = true;
+            bubble.innerHTML = '';
             const badge = document.createElement('div');
             badge.className = 'intent-badge';
-            badge.innerHTML = `⚡ ${evt.intent.replace('_', ' ')}`;
-            bubble.innerHTML = '';
+            badge.innerHTML = `⚡ ${escHtml(evt.intent.replace(/_/g, ' '))}`;
             bubble.appendChild(badge);
-            intentShown = true;
-            setStatus(evt.intent.replace('_', ' ').toLowerCase() + '…');
+            setStatus(evt.intent.replace(/_/g, ' ').toLowerCase() + '…');
           }
 
           if (evt.type === 'tool_call') {
             const pill = document.createElement('div');
             pill.className = 'tool-pill';
-            pill.innerHTML = `⚙ ${evt.tool}`;
+            pill.innerHTML = `⚙ ${escHtml(evt.tool)}`;
             bubble.appendChild(pill);
-            toolsShown.push(evt.tool);
+            scrollBottom();
+          }
+
+          if (evt.type === 'error') {
+            bubble.querySelector('.typing')?.remove();
+            let div = bubble.querySelector('.response-text') || bubble.appendChild(Object.assign(document.createElement('div'), {className:'response-text'}));
+            div.innerHTML = `<p style="color:#c0392b">⚠ ${escHtml(evt.content)}</p>`;
             scrollBottom();
           }
 
           if (evt.type === 'text') {
             accText += evt.content;
             bubble.querySelector('.typing')?.remove();
-
-            let textDiv = bubble.querySelector('.response-text');
-            if (!textDiv) {
-              textDiv = document.createElement('div');
-              textDiv.className = 'response-text';
-              bubble.appendChild(textDiv);
-            }
-            // Show raw text while streaming — will be replaced by cards on 'done'
-            textDiv.innerHTML = renderMarkdown(accText);
+            let div = bubble.querySelector('.response-text');
+            if (!div) { div = document.createElement('div'); div.className = 'response-text'; bubble.appendChild(div); }
+            div.innerHTML = renderMarkdown(accText);
             scrollBottom();
           }
 
           if (evt.type === 'done') {
             bubble.querySelector('.typing')?.remove();
-
-            // Final render — attempt JSON itinerary detection on complete response
             const trimmed = accText.trim();
             let isItinerary = false;
-            if (trimmed.startsWith('{') || trimmed.includes('"days"')) {
-              // Strip any accidental markdown fences
+
+            if (trimmed.startsWith('{') && trimmed.includes('"days"')) {
               const cleaned = trimmed.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
               try {
-                const itinerary = JSON.parse(cleaned);
-                if (itinerary.days && itinerary.destination) {
+                const itin = JSON.parse(cleaned);
+                if (itin.days && itin.destination) {
                   isItinerary = true;
-                  let textDiv = bubble.querySelector('.response-text');
-                  if (!textDiv) {
-                    textDiv = document.createElement('div');
-                    textDiv.className = 'response-text';
-                    bubble.appendChild(textDiv);
-                  }
-                  textDiv.innerHTML = renderItinerary(itinerary);
                   lastItinerary = cleaned;
+                  let div = bubble.querySelector('.response-text');
+                  if (!div) { div = document.createElement('div'); div.className = 'response-text'; bubble.appendChild(div); }
+                  div.innerHTML = renderItinerary(itin);
                   scrollBottom();
                 }
-              } catch(e) { /* not valid JSON, leave as markdown */ }
+              } catch(_) {}
             }
 
             if (!bubble.querySelector('.response-text') && !accText) {
-              const fallback = document.createElement('div');
-              fallback.className = 'response-text';
-              fallback.innerHTML = '<p style="color:var(--muted);font-style:italic">No response — please try again.</p>';
-              bubble.appendChild(fallback);
+              let div = document.createElement('div');
+              div.className = 'response-text';
+              div.innerHTML = '<p style="color:var(--muted);font-style:italic">No response — please try again.</p>';
+              bubble.appendChild(div);
             }
+
             setStatus('Ready');
-            if (isItinerary) {
-              offerCriticReview(bubble.closest('.msg'));
-            }
+            if (isItinerary) offerCriticReview(bubble.closest('.msg'));
           }
         }
       }
     } catch (e) {
       bubble.querySelector('.typing')?.remove();
-      const errDiv = document.createElement('div');
-      errDiv.className = 'response-text';
-      errDiv.innerHTML = `<p style="color:#c0392b">Error: ${escHtml(e.message)}</p>`;
-      bubble.appendChild(errDiv);
+      let div = document.createElement('div');
+      div.className = 'response-text';
+      div.innerHTML = `<p style="color:#c0392b">Error: ${escHtml(e.message)}</p>`;
+      bubble.appendChild(div);
       setStatus('Error');
+    } finally {
+      isStreaming = false;
+      $sendBtn.disabled = false;
+      history.push({ role: 'user', content: text });
+      if (accText) history.push({ role: 'assistant', content: accText });
+      if (history.length > 20) history = history.slice(-20);
+      refreshSidebar();
     }
-
-    // Save to history
-    history.push({ role: 'user', content: text });
-    if (accText) history.push({ role: 'assistant', content: accText });
-    if (history.length > 20) history = history.slice(-20);
-
-    isStreaming = false;
-    $sendBtn.disabled = false;
-
-    // Refresh sidebar
-    refreshSidebar();
   }
 
   function sendQuick(text) {
-    $input.value = text;
     sendMessage(text);
   }
 
@@ -1285,6 +1276,12 @@
     $input.setSelectionRange($input.value.length, $input.value.length);
   }
 
+  function openCreatorModal() {
+    $input.value = 'Plan me a creator trip to ';
+    $input.focus();
+    $input.setSelectionRange($input.value.length, $input.value.length);
+  }
+
   // ── Trip journal renderer ────────────────────────────────
   function renderTripJournal(trips) {
     const tripNames = Object.keys(trips);
@@ -1373,6 +1370,7 @@
   }
 
   function renderItinerary(data) {
+    const isCreatorTrip = data.trip_type === 'creator' || !!(data.creator_note || data.best_photo_spots_summary);
     const tagPills = (data.vibe_tags || [])
       .map(t => `<span class="itin-tag">${escHtml(t)}</span>`).join('');
 
@@ -1381,6 +1379,11 @@
         const icon = CATEGORY_ICON[slot.category] || '📍';
         const tIcon = TRANSPORT_ICON[slot.transport] || '🚶';
         const img = photoUrl(slot.image_search_query || slot.place_name);
+        const creatorExtras = (slot.best_time_to_shoot || slot.content_tip || slot.crowd_level) ? `
+          ${slot.best_time_to_shoot ? `<div style="font-size:11px;color:#9b59b6;margin-top:3px">🕐 ${escHtml(slot.best_time_to_shoot)}</div>` : ''}
+          ${slot.content_tip ? `<div style="font-size:11px;color:#2471a3;margin-top:3px;font-style:italic">📷 ${escHtml(slot.content_tip)}</div>` : ''}
+          ${slot.crowd_level ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">👥 ${escHtml(slot.crowd_level)}</div>` : ''}
+        ` : '';
         return `
           <div class="jrn-checkin">
             <div class="jrn-checkin-img" style="position:relative;flex-shrink:0">
@@ -1399,56 +1402,69 @@
               <div class="jrn-checkin-meta">${tIcon} ${escHtml(slot.transport || '')}</div>
               <p class="jrn-notes">${escHtml(slot.description)}</p>
               <p style="font-size:11px;color:var(--terracotta);font-style:italic;margin-top:2px">✨ ${escHtml(slot.why_it_fits || '')}</p>
+              ${creatorExtras}
             </div>
           </div>`;
       }).join('');
 
+      const dayBg = isCreatorTrip ? '#1a1a2e' : 'var(--gold-light)';
+      const dayTitleColor = isCreatorTrip ? 'white' : 'inherit';
+      const dayThemeColor = isCreatorTrip ? '#e0c3fc' : 'var(--muted)';
       return `
         <div class="jrn-trip" style="margin-bottom:0;border-radius:0;border-left:none;border-right:none;border-top:none">
-          <div class="jrn-cats" style="background:var(--gold-light)">
+          <div class="jrn-cats" style="background:${dayBg}">
             <span class="day-num">Day ${day.day}</span>
-            <span style="font-family:var(--font-display);font-size:14px;font-weight:600">${escHtml(day.title)}</span>
-            <span style="font-size:11px;color:var(--muted);margin-left:auto">${escHtml(day.theme || '')}</span>
+            <span style="font-family:var(--font-display);font-size:14px;font-weight:600;color:${dayTitleColor}">${escHtml(day.title)}</span>
+            <span style="font-size:11px;color:${dayThemeColor};margin-left:auto">${escHtml(day.theme || '')}</span>
           </div>
           <div class="jrn-timeline">${slotsHtml}</div>
         </div>`;
     }).join('');
 
-    const gemsHtml = (data.hidden_gems || [])
-      .map(g => `<li>💎 ${escHtml(g)}</li>`).join('');
-    const buyHtml = (data.what_to_buy || [])
-      .map(b => `<li>🛍️ ${escHtml(b)}</li>`).join('');
-    const packHtml = (data.packing_tips || [])
-      .map(p => `<li>🎒 ${escHtml(p)}</li>`).join('');
+    const gemsHtml       = (data.hidden_gems || []).map(g => `<li>💎 ${escHtml(g)}</li>`).join('');
+    const buyHtml        = (data.what_to_buy || []).map(b => `<li>🛍️ ${escHtml(b)}</li>`).join('');
+    const packHtml       = (data.packing_tips || []).map(p => `<li>🎒 ${escHtml(p)}</li>`).join('');
+    const photoHtml      = (data.best_photo_spots_summary || []).map(s => `<li>📸 ${escHtml(s)}</li>`).join('');
+    const aestheticHtml  = (data.aesthetic_food_picks || []).map(s => `<li>🍽️ ${escHtml(s)}</li>`).join('');
 
     const heroImg = photoUrl(data.destination + ' travel cityscape', 900, 220);
+    const heroOverlay = isCreatorTrip
+      ? 'linear-gradient(to top, rgba(26,26,46,0.92), rgba(26,26,46,0.3))'
+      : 'linear-gradient(to top, rgba(13,13,13,0.7), transparent)';
 
     return `
       <div class="jrn-wrap">
         <div class="jrn-trip">
           <div class="jrn-hero">
             <img src="${heroImg}" onerror="this.style.display='none'" loading="lazy" />
-            <div class="jrn-hero-overlay">
+            <div class="jrn-hero-overlay" style="background:${heroOverlay}">
+              ${isCreatorTrip ? '<span style="font-size:10px;background:#9b59b6;color:white;padding:2px 10px;border-radius:20px;margin-bottom:6px;display:inline-block;letter-spacing:0.06em">📸 CREATOR MODE</span>' : ''}
               <h3 class="jrn-trip-name">${escHtml(data.destination)}</h3>
               <p class="jrn-dates">📅 ${data.duration_days}-day trip · ${escHtml(data.travel_month || '')}</p>
               <p class="jrn-count">🌤 ${escHtml(data.weather_summary || '')}</p>
             </div>
           </div>
-          <div class="jrn-cats">
-            ${tagPills}
-          </div>
+          <div class="jrn-cats">${tagPills}</div>
+          ${data.creator_note ? `
+            <div style="padding:10px 14px;background:#1a1a2e;border-bottom:1px solid #9b59b6;font-size:12px;color:#e0c3fc;font-style:italic">
+              📸 ${escHtml(data.creator_note)}
+            </div>` : ''}
+          ${data.content_calendar_tips ? `
+            <div style="padding:10px 14px;background:#eef0fc;border-bottom:1px solid var(--border);font-size:12px;color:#2c3e80">
+              🗓️ <strong>Content Calendar:</strong> ${escHtml(data.content_calendar_tips)}
+            </div>` : ''}
           ${data.personalisation_note ? `
-          <div style="padding:10px 14px;background:var(--gold-light);border-bottom:1px solid var(--border);
-            font-size:12px;color:#7a5a10;font-style:italic">
-            💬 ${escHtml(data.personalisation_note)}
-          </div>` : ''}
+            <div style="padding:10px 14px;background:var(--gold-light);border-bottom:1px solid var(--border);font-size:12px;color:#7a5a10;font-style:italic">
+              💬 ${escHtml(data.personalisation_note)}
+            </div>` : ''}
           ${daysHtml}
-          ${gemsHtml || buyHtml || packHtml ? `
           <div class="jrn-cats" style="flex-direction:column;align-items:flex-start;gap:10px">
-            ${gemsHtml ? `<div><strong style="font-size:12px">💎 Hidden Gems</strong><ul class="itin-list" style="margin-top:4px">${gemsHtml}</ul></div>` : ''}
-            ${buyHtml  ? `<div><strong style="font-size:12px">🛍️ What to Buy</strong><ul class="itin-list" style="margin-top:4px">${buyHtml}</ul></div>` : ''}
-            ${packHtml ? `<div><strong style="font-size:12px">🎒 What to Pack</strong><ul class="itin-list" style="margin-top:4px">${packHtml}</ul></div>` : ''}
-          </div>` : ''}
+            ${photoHtml     ? `<div><strong style="font-size:12px">📸 Top Photo Spots</strong><ul class="itin-list" style="margin-top:4px">${photoHtml}</ul></div>` : ''}
+            ${aestheticHtml ? `<div><strong style="font-size:12px">🍽️ Aesthetic Food Picks</strong><ul class="itin-list" style="margin-top:4px">${aestheticHtml}</ul></div>` : ''}
+            ${gemsHtml      ? `<div><strong style="font-size:12px">💎 Hidden Gems</strong><ul class="itin-list" style="margin-top:4px">${gemsHtml}</ul></div>` : ''}
+            ${buyHtml       ? `<div><strong style="font-size:12px">🛍️ What to Buy</strong><ul class="itin-list" style="margin-top:4px">${buyHtml}</ul></div>` : ''}
+            ${packHtml      ? `<div><strong style="font-size:12px">🎒 What to Pack</strong><ul class="itin-list" style="margin-top:4px">${packHtml}</ul></div>` : ''}
+          </div>
         </div>
       </div>`;
   }
@@ -1459,6 +1475,11 @@
 
   $input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    if (e.key === 'Escape' && isStreaming) {
+      isStreaming = false;
+      $sendBtn.disabled = false;
+      setStatus('Ready');
+    }
   });
 
   // Initial sidebar load
