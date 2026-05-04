@@ -1,0 +1,1468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VibeTrip — Your Travel Style, Learned</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+<style>
+  /* ── Reset & tokens ─────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:       #0d0d0d;
+    --paper:     #f5f0e8;
+    --cream:     #faf7f2;
+    --sand:      #e8e0d0;
+    --terracotta:#c4622d;
+    --terra-light:#f0d5c4;
+    --sage:      #5a7a5e;
+    --sage-light:#d4e4d6;
+    --gold:      #c9a84c;
+    --gold-light:#f5ecd4;
+    --muted:     #7a7060;
+    --border:    rgba(13,13,13,0.1);
+    --shadow:    0 2px 20px rgba(13,13,13,0.08);
+    --shadow-lg: 0 8px 40px rgba(13,13,13,0.14);
+    --r:         12px;
+    --r-sm:      6px;
+    --font-display: 'Playfair Display', serif;
+    --font-body:    'DM Sans', sans-serif;
+    --font-mono:    'DM Mono', monospace;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  .shell {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    grid-template-rows: 100vh;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── Sidebar ─────────────────────────────────────────────── */
+  .sidebar {
+    background: var(--ink);
+    color: var(--paper);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .sidebar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 0%, rgba(196,98,45,0.18) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 100%, rgba(90,122,94,0.15) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .sidebar-inner { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; }
+
+  .brand {
+    padding: 28px 24px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .brand-logo {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+  }
+  .brand-icon {
+    width: 32px; height: 32px;
+    background: var(--terracotta);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: -0.02em;
+    color: var(--paper);
+  }
+  .brand-tagline {
+    font-size: 11px;
+    color: rgba(245,240,232,0.45);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Quick actions */
+  .quick-actions {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .quick-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(245,240,232,0.35);
+    padding: 4px 8px 8px;
+  }
+
+  .qa-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    border: none;
+    background: transparent;
+    color: rgba(245,240,232,0.7);
+    font-family: var(--font-body);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    width: 100%;
+  }
+  .qa-btn:hover {
+    background: rgba(255,255,255,0.07);
+    color: var(--paper);
+  }
+  .qa-btn .qa-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  /* Trips panel */
+  .trips-panel {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 16px 16px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+  }
+
+  .trip-card {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--r-sm);
+    padding: 12px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .trip-card:hover { background: rgba(255,255,255,0.09); }
+  .trip-card-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--paper);
+    margin-bottom: 4px;
+  }
+  .trip-card-meta {
+    font-size: 11px;
+    color: rgba(245,240,232,0.4);
+  }
+  .trip-chip {
+    display: inline-block;
+    background: rgba(196,98,45,0.25);
+    color: var(--terracotta);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 6px;
+  }
+
+  /* Vibe profile card */
+  .vibe-card {
+    margin: 0 16px 16px;
+    background: linear-gradient(135deg, rgba(196,98,45,0.15), rgba(90,122,94,0.12));
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--r-sm);
+    padding: 14px;
+  }
+  .vibe-card-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(245,240,232,0.4);
+    margin-bottom: 6px;
+  }
+  .vibe-summary {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-style: italic;
+    color: var(--paper);
+    margin-bottom: 8px;
+  }
+  .vibe-tags {
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+  .vibe-tag {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(201,168,76,0.2);
+    color: var(--gold);
+    border: 1px solid rgba(201,168,76,0.3);
+  }
+
+  /* ── Main area ───────────────────────────────────────────── */
+  .main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--cream);
+  }
+
+  /* Top bar */
+  .topbar {
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--cream);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .topbar-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: var(--ink);
+  }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted);
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--sage);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Messages */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: smooth;
+  }
+
+  /* Welcome screen */
+  .welcome {
+    margin: auto;
+    max-width: 520px;
+    text-align: center;
+    padding: 40px 20px;
+  }
+  .welcome-globe { font-size: 52px; margin-bottom: 16px; }
+  .welcome-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .welcome-sub {
+    color: var(--muted);
+    font-size: 15px;
+    margin-bottom: 28px;
+    line-height: 1.7;
+  }
+  .welcome-chips {
+    display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  }
+  .welcome-chip {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: var(--ink);
+  }
+  .welcome-chip:hover {
+    background: var(--terracotta);
+    border-color: var(--terracotta);
+    color: white;
+  }
+
+  /* Message bubbles */
+  .msg {
+    display: flex;
+    gap: 12px;
+    max-width: 720px;
+    animation: fadeUp 0.25s ease both;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+  .msg.assistant { align-self: flex-start; }
+
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .msg.user .msg-avatar { background: var(--terracotta); }
+  .msg.assistant .msg-avatar { background: var(--ink); }
+
+  .msg-bubble {
+    border-radius: var(--r);
+    padding: 12px 16px;
+    font-size: 14px;
+    line-height: 1.65;
+    max-width: 560px;
+  }
+  .msg.user .msg-bubble {
+    background: var(--terracotta);
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.assistant .msg-bubble {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+    box-shadow: var(--shadow);
+  }
+
+  /* Intent badge */
+  .intent-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    background: var(--gold-light);
+    color: #7a5a10;
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin-bottom: 10px;
+  }
+
+  /* Tool call pill */
+  .tool-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    background: var(--sage-light);
+    color: #2d4a30;
+    border: 1px solid rgba(90,122,94,0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    margin: 2px 0;
+  }
+
+  /* Critic panel */
+  .critic-panel {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--gold);
+    border-radius: var(--r);
+    padding: 16px;
+    margin-top: 12px;
+    box-shadow: var(--shadow);
+  }
+  .critic-label {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Approval buttons */
+  .approval-row {
+    display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+  }
+  .approve-btn, .swap-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-family: var(--font-body);
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+  .approve-btn { background: var(--sage); color: white; }
+  .approve-btn:hover { background: #4a6a4e; }
+  .swap-btn { background: var(--sand); color: var(--ink); border: 1px solid var(--border); }
+  .swap-btn:hover { background: var(--terra-light); }
+
+  /* Typing indicator */
+  .typing {
+    display: flex; align-items: center; gap: 4px;
+    padding: 8px 0;
+  }
+  .typing span {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    animation: bounce 1.2s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+    40% { transform: translateY(-5px); opacity: 1; }
+  }
+
+  /* ── Input area ──────────────────────────────────────────── */
+  .input-area {
+    padding: 16px 28px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--cream);
+    flex-shrink: 0;
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    background: var(--paper);
+    border: 1.5px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 12px;
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s;
+  }
+  .input-row:focus-within { border-color: var(--terracotta); }
+
+  #msg-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--ink);
+    resize: none;
+    outline: none;
+    min-height: 24px;
+    max-height: 120px;
+    line-height: 1.5;
+  }
+  #msg-input::placeholder { color: var(--muted); }
+
+  .send-btn {
+    width: 36px; height: 36px;
+    border-radius: 8px;
+    border: none;
+    background: var(--terracotta);
+    color: white;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .send-btn:hover { background: #a8521f; }
+  .send-btn:disabled { background: var(--sand); cursor: not-allowed; }
+
+  .input-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  /* Scrollbar */
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--sand); border-radius: 2px; }
+
+  /* ── Trip journal ───────────────────────────────────────── */
+  .jrn-wrap { display: flex; flex-direction: column; gap: 20px; width: 100%; }
+
+  .jrn-trip {
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    overflow: hidden;
+    background: var(--cream);
+    box-shadow: var(--shadow);
+  }
+  .jrn-hero {
+    position: relative;
+    height: 140px;
+    overflow: hidden;
+    background: var(--ink);
+  }
+  .jrn-hero img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0.6;
+  }
+  .jrn-hero-overlay {
+    position: absolute;
+    inset: 0;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: linear-gradient(to top, rgba(13,13,13,0.75), transparent);
+  }
+  .jrn-trip-name {
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: white;
+    margin-bottom: 2px;
+  }
+  .jrn-dates, .jrn-count {
+    font-size: 12px;
+    color: rgba(255,255,255,0.75);
+  }
+  .jrn-cats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper);
+  }
+  .jrn-cat-pill {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    background: var(--sand);
+    color: var(--ink);
+  }
+  .jrn-cat-pill strong { color: var(--terracotta); }
+
+  .jrn-timeline {
+    display: flex;
+    flex-direction: column;
+  }
+  .jrn-checkin {
+    display: flex;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.12s;
+  }
+  .jrn-checkin:last-child { border-bottom: none; }
+  .jrn-checkin:hover { background: var(--paper); }
+
+  .jrn-checkin-img {
+    width: 64px;
+    height: 64px;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--sand);
+  }
+  .jrn-checkin-img img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  .jrn-checkin-body { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .jrn-checkin-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .jrn-checkin-icon { font-size: 14px; }
+  .jrn-checkin-header strong { font-size: 13px; flex: 1; }
+  .jrn-checkin-date { font-size: 11px; color: var(--muted); }
+  .jrn-checkin-meta {
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .jrn-price {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .jrn-price-free    { background: var(--sage-light);  color: #2d4a30; }
+  .jrn-price-budget  { background: var(--gold-light);  color: #7a5a10; }
+  .jrn-price-mid     { background: var(--terra-light); color: #7a3010; }
+  .jrn-price-luxury  { background: #f0e0f8;            color: #5a1080; }
+  .jrn-notes {
+    font-size: 11px;
+    font-style: italic;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 2px;
+  }
+
+  /* ── Itinerary cards ─────────────────────────────────────── */
+  .itin-card {
+    width: 100%;
+    border-radius: var(--r);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: var(--cream);
+    box-shadow: var(--shadow-lg);
+    font-size: 13px;
+  }
+  .itin-hero {
+    position: relative;
+    height: 180px;
+    overflow: hidden;
+    background: var(--ink);
+  }
+  .itin-hero img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0.65;
+  }
+  .itin-hero-overlay {
+    position: absolute;
+    inset: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    background: linear-gradient(to top, rgba(13,13,13,0.7), transparent);
+  }
+  .itin-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: white;
+    margin-bottom: 4px;
+  }
+  .itin-subtitle { font-size: 12px; color: rgba(255,255,255,0.75); margin-bottom: 8px; }
+  .itin-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .itin-tag {
+    font-size: 10px; padding: 2px 8px;
+    border-radius: 20px;
+    background: rgba(201,168,76,0.8);
+    color: white;
+  }
+  .itin-note {
+    padding: 12px 16px;
+    background: var(--gold-light);
+    border-left: 3px solid var(--gold);
+    font-size: 12px;
+    color: #7a5a10;
+    font-style: italic;
+  }
+  .day-block { border-top: 1px solid var(--border); }
+  .day-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--paper);
+    flex-wrap: wrap;
+  }
+  .day-num {
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--terracotta);
+    color: white;
+    padding: 3px 10px;
+    border-radius: 20px;
+  }
+  .day-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; }
+  .day-theme { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+  .slots-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1px;
+    background: var(--border);
+  }
+  .slot-card {
+    background: var(--cream);
+    display: flex;
+    flex-direction: column;
+    transition: background 0.15s;
+  }
+  .slot-card:hover { background: var(--paper); }
+  .slot-img-wrap {
+    position: relative;
+    height: 130px;
+    overflow: hidden;
+    background: var(--sand);
+  }
+  .slot-img-wrap img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+  }
+  .slot-card:hover .slot-img-wrap img { transform: scale(1.04); }
+  .slot-time {
+    position: absolute;
+    top: 8px; left: 8px;
+    font-size: 10px;
+    font-weight: 600;
+    background: rgba(13,13,13,0.65);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .slot-body { padding: 10px 12px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .slot-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .slot-icon { font-size: 14px; }
+  .slot-name { font-size: 13px; font-weight: 600; flex: 1; }
+  .slot-cost {
+    font-size: 10px;
+    background: var(--sage-light);
+    color: #2d4a30;
+    padding: 2px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .slot-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .slot-vibe { font-size: 11px; color: var(--terracotta); font-style: italic; }
+  .slot-meta { font-size: 11px; color: var(--muted); margin-top: auto; }
+
+  .itin-section {
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+  }
+  .itin-section h3 {
+    font-family: var(--font-display);
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+  .itin-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .itin-list li { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  /* Markdown-ish formatting */
+  .msg-bubble strong { font-weight: 600; }
+  .msg-bubble em { font-style: italic; }
+  .msg-bubble code {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--sand);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .msg-bubble p { margin-bottom: 8px; }
+  .msg-bubble p:last-child { margin-bottom: 0; }
+  .msg-bubble ul, .msg-bubble ol { padding-left: 18px; margin-bottom: 8px; }
+  .msg-bubble li { margin-bottom: 4px; }
+  .msg-bubble h3 {
+    font-family: var(--font-display);
+    font-size: 16px;
+    margin: 12px 0 6px;
+    color: var(--ink);
+  }
+  .msg-bubble h4 { font-size: 14px; margin: 10px 0 4px; font-weight: 600; }
+
+  /* Responsive */
+  @media (max-width: 700px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+      <div class="brand">
+        <div class="brand-logo">
+          <div class="brand-icon">🧭</div>
+          <span class="brand-name">VibeTrip</span>
+        </div>
+        <div class="brand-tagline">Your travel style, learned</div>
+      </div>
+
+      <div class="quick-actions">
+        <div class="quick-label">Quick actions</div>
+        <button class="qa-btn" onclick="sendQuick('Log a check-in from my last trip')">
+          <div class="qa-icon" style="background:rgba(196,98,45,0.2)">📍</div>
+          Log a check-in
+        </button>
+        <button class="qa-btn" onclick="sendQuick('load demo trips')">
+          <div class="qa-icon" style="background:rgba(201,168,76,0.2)">🗂️</div>
+          Load demo trips
+        </button>
+        <button class="qa-btn" onclick="sendQuick('Analyze my travel vibe from my past trips')">
+          <div class="qa-icon" style="background:rgba(90,122,94,0.2)">🧠</div>
+          Analyze my vibe
+        </button>
+        <button class="qa-btn" onclick="sendQuick('Show me all my logged trips')">
+          <div class="qa-icon" style="background:rgba(201,168,76,0.2)">📋</div>
+          View my trips
+        </button>
+        <button class="qa-btn" onclick="openPlanModal()">
+          <div class="qa-icon" style="background:rgba(90,122,94,0.2)">🗺️</div>
+          Plan a new trip
+        </button>
+      </div>
+
+      <div class="trips-panel" id="sidebar-trips">
+        <div class="quick-label">Recent trips</div>
+        <div id="trip-list" style="color:rgba(245,240,232,0.3);font-size:12px;padding:8px">
+          No trips logged yet
+        </div>
+        <div class="quick-label" style="margin-top:12px">✈ Planned trips</div>
+        <div id="planned-list" style="color:rgba(245,240,232,0.3);font-size:12px;padding:8px">
+          No planned trips yet
+        </div>
+      </div>
+
+      <div class="vibe-card" id="vibe-sidebar" style="display:none">
+        <div class="vibe-card-label">✦ Your vibe</div>
+        <div class="vibe-summary" id="vibe-summary-text"></div>
+        <div class="vibe-tags" id="vibe-tags-list"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title">Travel Journal</div>
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        <span id="status-text">Ready</span>
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <!-- Welcome -->
+      <div class="welcome" id="welcome-screen">
+        <div class="welcome-globe">🌍</div>
+        <h1 class="welcome-title">Where have you been?</h1>
+        <p class="welcome-sub">
+          Log the places you visit. VibeTrip learns your travel style —<br>
+          then plans your next adventure to match it perfectly.
+        </p>
+        <div class="welcome-chips">
+          <button class="welcome-chip" onclick="sendQuick('load demo trips')">🗂️ Load demo trips</button>
+          <button class="welcome-chip" onclick="sendQuick('I just had amazing ramen at Ichiran in Tokyo, Japan trip')">📍 Log Tokyo ramen spot</button>
+          <button class="welcome-chip" onclick="sendQuick('Analyze my travel vibe from my past trips')">🧠 Analyze my vibe</button>
+          <button class="welcome-chip" onclick="sendQuick('Plan me 5 days in Barcelona based on my travel style')">🗺️ Plan Barcelona trip</button>
+          <button class="welcome-chip" onclick="sendQuick('How does VibeTrip work?')">💬 How does this work?</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-row">
+        <textarea id="msg-input" rows="1" placeholder="Tell me about a place you visited, or ask me to plan a trip…"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
+      </div>
+      <div class="input-hint">Log check-ins · Analyze your vibe · Plan new trips</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  // ── State ────────────────────────────────────────────────
+  const USER_ID = 'user_' + Math.random().toString(36).slice(2, 9);
+  let history = [];
+  let isStreaming = false;
+  let lastItinerary = '';
+
+  // ── DOM helpers ──────────────────────────────────────────
+  const $messages = document.getElementById('messages');
+  const $input    = document.getElementById('msg-input');
+  const $sendBtn  = document.getElementById('send-btn');
+  const $status   = document.getElementById('status-text');
+  const $welcome  = document.getElementById('welcome-screen');
+
+  function hideWelcome() {
+    if ($welcome) $welcome.style.display = 'none';
+  }
+
+  function setStatus(text) { $status.textContent = text; }
+
+  function scrollBottom() {
+    $messages.scrollTop = $messages.scrollHeight;
+  }
+
+  // ── Message rendering ────────────────────────────────────
+  function appendUserMsg(text) {
+    hideWelcome();
+    const el = document.createElement('div');
+    el.className = 'msg user';
+    el.innerHTML = `
+      <div class="msg-avatar">✈</div>
+      <div class="msg-bubble">${escHtml(text)}</div>`;
+    $messages.appendChild(el);
+    scrollBottom();
+  }
+
+  function createAssistantBubble() {
+    hideWelcome();
+    const wrap = document.createElement('div');
+    wrap.className = 'msg assistant';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = '<div class="typing"><span></span><span></span><span></span></div>';
+    wrap.innerHTML = '<div class="msg-avatar">🧭</div>';
+    const contentWrap = document.createElement('div');
+    contentWrap.style.flex = '1';
+    contentWrap.appendChild(bubble);
+    wrap.appendChild(contentWrap);
+    $messages.appendChild(wrap);
+    scrollBottom();
+    return bubble;
+  }
+
+  function renderMarkdown(text) {
+    return text
+      .replace(/### (.+)/g, '<h3>$1</h3>')
+      .replace(/#### (.+)/g, '<h4>$1</h4>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      .replace(/\n\n/g, '</p><p>')
+      .replace(/\n- /g, '</p><ul><li>')
+      .replace(/\n(\d+)\. /g, '</p><ol><li>')
+      .replace(/^/, '<p>')
+      .replace(/$/, '</p>');
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── Send message ─────────────────────────────────────────
+  async function sendMessage(overrideText) {
+    if (isStreaming) return;
+    const text = overrideText || $input.value.trim();
+    if (!text) return;
+
+    $input.value = '';
+    $input.style.height = 'auto';
+    isStreaming = true;
+    $sendBtn.disabled = true;
+    setStatus('Thinking…');
+
+    appendUserMsg(text);
+    const bubble = createAssistantBubble();
+
+    let accText = '';
+    let intentShown = false;
+    let toolsShown = [];
+
+    try {
+      const resp = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, history, user_id: USER_ID }),
+      });
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+          if (evt.type === 'trip_journal') {
+            bubble.querySelector('.typing')?.remove();
+            let textDiv = bubble.querySelector('.response-text');
+            if (!textDiv) {
+              textDiv = document.createElement('div');
+              textDiv.className = 'response-text';
+              bubble.appendChild(textDiv);
+            }
+            textDiv.innerHTML = renderTripJournal(evt.trips);
+            scrollBottom();
+          }
+
+          if (evt.type === 'heartbeat') {
+            // Keep the typing indicator alive — we're still working
+            const existing = bubble.querySelector('.typing');
+            if (existing) existing.style.opacity = '1';
+          }
+
+          if (evt.type === 'intent' && !intentShown) {
+            const badge = document.createElement('div');
+            badge.className = 'intent-badge';
+            badge.innerHTML = `⚡ ${evt.intent.replace('_', ' ')}`;
+            bubble.innerHTML = '';
+            bubble.appendChild(badge);
+            intentShown = true;
+            setStatus(evt.intent.replace('_', ' ').toLowerCase() + '…');
+          }
+
+          if (evt.type === 'tool_call') {
+            const pill = document.createElement('div');
+            pill.className = 'tool-pill';
+            pill.innerHTML = `⚙ ${evt.tool}`;
+            bubble.appendChild(pill);
+            toolsShown.push(evt.tool);
+            scrollBottom();
+          }
+
+          if (evt.type === 'text') {
+            accText += evt.content;
+            bubble.querySelector('.typing')?.remove();
+
+            let textDiv = bubble.querySelector('.response-text');
+            if (!textDiv) {
+              textDiv = document.createElement('div');
+              textDiv.className = 'response-text';
+              bubble.appendChild(textDiv);
+            }
+            // Show raw text while streaming — will be replaced by cards on 'done'
+            textDiv.innerHTML = renderMarkdown(accText);
+            scrollBottom();
+          }
+
+          if (evt.type === 'done') {
+            bubble.querySelector('.typing')?.remove();
+
+            // Final render — attempt JSON itinerary detection on complete response
+            const trimmed = accText.trim();
+            let isItinerary = false;
+            if (trimmed.startsWith('{') || trimmed.includes('"days"')) {
+              // Strip any accidental markdown fences
+              const cleaned = trimmed.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+              try {
+                const itinerary = JSON.parse(cleaned);
+                if (itinerary.days && itinerary.destination) {
+                  isItinerary = true;
+                  let textDiv = bubble.querySelector('.response-text');
+                  if (!textDiv) {
+                    textDiv = document.createElement('div');
+                    textDiv.className = 'response-text';
+                    bubble.appendChild(textDiv);
+                  }
+                  textDiv.innerHTML = renderItinerary(itinerary);
+                  lastItinerary = cleaned;
+                  scrollBottom();
+                }
+              } catch(e) { /* not valid JSON, leave as markdown */ }
+            }
+
+            if (!bubble.querySelector('.response-text') && !accText) {
+              const fallback = document.createElement('div');
+              fallback.className = 'response-text';
+              fallback.innerHTML = '<p style="color:var(--muted);font-style:italic">No response — please try again.</p>';
+              bubble.appendChild(fallback);
+            }
+            setStatus('Ready');
+            if (isItinerary) {
+              offerCriticReview(bubble.closest('.msg'));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      bubble.querySelector('.typing')?.remove();
+      const errDiv = document.createElement('div');
+      errDiv.className = 'response-text';
+      errDiv.innerHTML = `<p style="color:#c0392b">Error: ${escHtml(e.message)}</p>`;
+      bubble.appendChild(errDiv);
+      setStatus('Error');
+    }
+
+    // Save to history
+    history.push({ role: 'user', content: text });
+    if (accText) history.push({ role: 'assistant', content: accText });
+    if (history.length > 20) history = history.slice(-20);
+
+    isStreaming = false;
+    $sendBtn.disabled = false;
+
+    // Refresh sidebar
+    refreshSidebar();
+  }
+
+  function sendQuick(text) {
+    $input.value = text;
+    sendMessage(text);
+  }
+
+  // ── Critic (generator-critic + human-in-the-loop) ────────
+  function offerCriticReview(bubble) {
+    const panel = document.createElement('div');
+    panel.className = 'critic-panel';
+    panel.innerHTML = `
+      <div class="critic-label">🔍 Critic Agent — Quality Review</div>
+      <p style="font-size:13px;color:var(--muted)">Want me to check this itinerary against your travel vibe and flag any mismatches?</p>
+      <div class="approval-row">
+        <button class="approve-btn" onclick="runCritic(this)">✓ Review it</button>
+        <button class="swap-btn" onclick="this.closest('.critic-panel').remove()">Skip</button>
+      </div>`;
+    bubble.after(panel);
+    scrollBottom();
+  }
+
+  async function runCritic(btn) {
+    const panel = btn.closest('.critic-panel');
+    panel.innerHTML = `<div class="critic-label">🔍 Critic Agent reviewing…</div><div class="typing"><span></span><span></span><span></span></div>`;
+
+    setStatus('Critic reviewing…');
+    let criticText = '';
+
+    try {
+      const resp = await fetch('/critic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itinerary: lastItinerary, user_id: USER_ID }),
+      });
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          let evt;
+          try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+          if (evt.type === 'text') { criticText += evt.content; }
+        }
+      }
+    } catch(e) { criticText = 'Critic review failed: ' + e.message; }
+
+    panel.innerHTML = `
+      <div class="critic-label">🔍 Critic Review Complete</div>
+      <div style="font-size:13px;line-height:1.65">${renderMarkdown(criticText)}</div>
+      <div class="approval-row">
+        <button class="approve-btn" onclick="approvePlan(this)">✓ Looks great, save this plan</button>
+        <button class="swap-btn" onclick="sendQuick('Regenerate the itinerary fixing the flagged issues')">↻ Regenerate with fixes</button>
+      </div>`;
+    scrollBottom();
+    setStatus('Ready');
+  }
+
+  function approvePlan(btn) {
+    const panel = btn.closest('.critic-panel');
+    panel.innerHTML = `<div class="critic-label" style="color:var(--sage)">✓ Plan approved and saved to your trips!</div>`;
+    setTimeout(() => panel.remove(), 3000);
+  }
+
+  // ── Sidebar refresh ──────────────────────────────────────
+  async function refreshSidebar() {
+    try {
+      const [tripsData, plannedData] = await Promise.all([
+        fetch(`/trips/${USER_ID}`).then(r => r.json()),
+        fetch(`/planned-trips/${USER_ID}`).then(r => r.json()),
+      ]);
+
+      // ── Past trips ──
+      const trips = tripsData.trips?.trips || {};
+      const profile = tripsData.vibe_profile?.vibe_profile;
+      const $tripList = document.getElementById('trip-list');
+      const names = Object.keys(trips);
+
+      if (names.length === 0) {
+        $tripList.innerHTML = '<div style="color:rgba(245,240,232,0.3);font-size:12px">No trips logged yet</div>';
+      } else {
+        $tripList.innerHTML = names.map(name => {
+          const t = trips[name];
+          const count = t.checkins?.length || 0;
+          return `<div class="trip-card" onclick="sendQuick('Show me my ${escHtml(name)} trip details')">
+            <div class="trip-card-name">${escHtml(name)}</div>
+            <div class="trip-card-meta">${count} check-in${count !== 1 ? 's' : ''}</div>
+            <span class="trip-chip">${count > 0 ? trips[name].checkins.slice(-1)[0].category : 'new'}</span>
+          </div>`;
+        }).join('');
+      }
+
+      // ── Planned trips ──
+      const planned = plannedData.planned_trips || [];
+      const $plannedList = document.getElementById('planned-list');
+
+      if (planned.length === 0) {
+        $plannedList.innerHTML = '<div style="color:rgba(245,240,232,0.3);font-size:12px">No planned trips yet</div>';
+      } else {
+        $plannedList.innerHTML = planned.map((p, i) => {
+          const dest = p.destination || 'Unknown';
+          const month = p.travel_month || '';
+          const days = p.duration_days || '?';
+          const tags = (p.vibe_tags || []).slice(0, 2).join(', ');
+          return `<div class="trip-card" onclick="viewPlannedTrip(${i})" style="border-left:2px solid var(--terracotta)">
+            <div class="trip-card-name">✈ ${escHtml(dest)}</div>
+            <div class="trip-card-meta">${days} days · ${escHtml(month)}</div>
+            ${tags ? `<span class="trip-chip">${escHtml(tags)}</span>` : ''}
+          </div>`;
+        }).join('');
+      }
+
+      // ── Vibe profile ──
+      if (profile) {
+        document.getElementById('vibe-sidebar').style.display = 'block';
+        document.getElementById('vibe-summary-text').textContent = profile.vibe_summary || '';
+        const tags = profile.tags || [];
+        document.getElementById('vibe-tags-list').innerHTML = tags.map(t => `<span class="vibe-tag">${t}</span>`).join('');
+      }
+    } catch(e) { /* ignore */ }
+  }
+
+  // Store planned trips locally for sidebar click-to-view
+  let _plannedTripsCache = [];
+
+  async function viewPlannedTrip(index) {
+    try {
+      const data = await fetch(`/planned-trips/${USER_ID}`).then(r => r.json());
+      const planned = data.planned_trips || [];
+      const trip = planned[index];
+      if (!trip) return;
+
+      hideWelcome();
+      const wrap = document.createElement('div');
+      wrap.className = 'msg assistant';
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+      const contentWrap = document.createElement('div');
+      contentWrap.style.flex = '1';
+      contentWrap.appendChild(bubble);
+      wrap.innerHTML = '<div class="msg-avatar">🧭</div>';
+      wrap.appendChild(contentWrap);
+      $messages.appendChild(wrap);
+
+      const textDiv = document.createElement('div');
+      textDiv.className = 'response-text';
+      textDiv.innerHTML = renderItinerary(trip);
+      bubble.appendChild(textDiv);
+      scrollBottom();
+    } catch(e) { console.error(e); }
+  }
+
+  // ── Plan trip modal shortcut ─────────────────────────────
+  function openPlanModal() {
+    $input.value = 'Plan me a trip to ';
+    $input.focus();
+    $input.setSelectionRange($input.value.length, $input.value.length);
+  }
+
+  // ── Trip journal renderer ────────────────────────────────
+  function renderTripJournal(trips) {
+    const tripNames = Object.keys(trips);
+    if (!tripNames.length) return '<p style="color:var(--muted)">No trips logged yet.</p>';
+
+    const tripsHtml = tripNames.map(name => {
+      const trip = trips[name];
+      const checkins = trip.checkins || [];
+      const start = trip.start_date || '';
+      const end = trip.end_date || '';
+      const dateRange = start ? `${start}${end && end !== start ? ' → ' + end : ''}` : '';
+
+      // Count categories for the summary bar
+      const cats = {};
+      checkins.forEach(c => { cats[c.category] = (cats[c.category] || 0) + 1; });
+      const topCats = Object.entries(cats).sort((a,b) => b[1]-a[1]).slice(0,4);
+      const catPills = topCats.map(([cat, count]) =>
+        `<span class="jrn-cat-pill">${CATEGORY_ICON[cat] || '📍'} ${cat} <strong>${count}</strong></span>`
+      ).join('');
+
+      // Hero image based on trip name — use Picsum with stable seed
+      const heroSeed = name.split('').reduce((s,c) => (s*31+c.charCodeAt(0))&0xffff, 0);
+      const heroImg = `https://picsum.photos/seed/${heroSeed}/800/200`;
+
+      // Checkin timeline
+      const timelineHtml = checkins.map((c, i) => {
+        const icon = CATEGORY_ICON[c.category] || '📍';
+        const tIcon = TRANSPORT_ICON[c.transport] || '🚶';
+        const imgSeed = (c.place_name + c.category).split('').reduce((s,ch) => (s*31+ch.charCodeAt(0))&0xffff, 0);
+        const img = `https://picsum.photos/seed/${imgSeed}/120/120`;
+        return `
+          <div class="jrn-checkin">
+            <div class="jrn-checkin-img">
+              <img src="${img}" alt="${escHtml(c.place_name)}"
+                   onerror="this.style.display='none'" loading="lazy" />
+            </div>
+            <div class="jrn-checkin-body">
+              <div class="jrn-checkin-header">
+                <span class="jrn-checkin-icon">${icon}</span>
+                <strong>${escHtml(c.place_name)}</strong>
+                <span class="jrn-checkin-date">${c.date || ''}</span>
+              </div>
+              <div class="jrn-checkin-meta">
+                ${tIcon} ${escHtml(c.transport || '')}
+                <span class="jrn-price jrn-price-${c.price_tier}">${escHtml(c.price_tier || '')}</span>
+              </div>
+              ${c.notes ? `<p class="jrn-notes">"${escHtml(c.notes)}"</p>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="jrn-trip">
+          <div class="jrn-hero">
+            <img src="${heroImg}" onerror="this.style.display='none'" loading="lazy" />
+            <div class="jrn-hero-overlay">
+              <h3 class="jrn-trip-name">${escHtml(name)}</h3>
+              ${dateRange ? `<p class="jrn-dates">📅 ${dateRange}</p>` : ''}
+              <p class="jrn-count">📍 ${checkins.length} check-ins</p>
+            </div>
+          </div>
+          <div class="jrn-cats">${catPills}</div>
+          <div class="jrn-timeline">${timelineHtml}</div>
+        </div>`;
+    }).join('');
+
+    return `<div class="jrn-wrap">${tripsHtml}</div>`;
+  }
+
+  // ── Rich itinerary renderer ──────────────────────────────
+  const CATEGORY_ICON = {
+    food: '🍽️', sightseeing: '🗺️', culture: '🏛️', museum: '🖼️',
+    nature: '🌿', nightlife: '🌙', shopping: '🛍️', entertainment: '🎭',
+    accommodation: '🏨', transport: '🚇', wellness: '🧘'
+  };
+  const TRANSPORT_ICON = {
+    walk: '🚶', transit: '🚇', taxi: '🚕', bike: '🚲', car: '🚗'
+  };
+
+  // Picsum gives reliable, beautiful photos seeded by a hash of the query
+  function photoUrl(query, w=600, h=400) {
+    // Generate a stable numeric seed from the query string
+    let seed = 0;
+    for (let i = 0; i < query.length; i++) seed = (seed * 31 + query.charCodeAt(i)) & 0xffff;
+    return `https://picsum.photos/seed/${seed}/${w}/${h}`;
+  }
+
+  function renderItinerary(data) {
+    const tagPills = (data.vibe_tags || [])
+      .map(t => `<span class="itin-tag">${escHtml(t)}</span>`).join('');
+
+    const daysHtml = (data.days || []).map(day => {
+      const slotsHtml = (day.slots || []).map(slot => {
+        const icon = CATEGORY_ICON[slot.category] || '📍';
+        const tIcon = TRANSPORT_ICON[slot.transport] || '🚶';
+        const img = photoUrl(slot.image_search_query || slot.place_name);
+        return `
+          <div class="jrn-checkin">
+            <div class="jrn-checkin-img" style="position:relative;flex-shrink:0">
+              <img src="${img}" alt="${escHtml(slot.place_name)}"
+                   onerror="this.parentElement.style.background='var(--sand)';this.style.display='none'"
+                   loading="lazy" style="width:64px;height:64px;object-fit:cover;border-radius:var(--r-sm)" />
+              <span style="position:absolute;top:-4px;left:-4px;font-size:11px;background:var(--ink);
+                color:white;border-radius:4px;padding:1px 5px;white-space:nowrap">${escHtml(slot.time_of_day)}</span>
+            </div>
+            <div class="jrn-checkin-body">
+              <div class="jrn-checkin-header">
+                <span class="jrn-checkin-icon">${icon}</span>
+                <strong>${escHtml(slot.place_name)}</strong>
+                <span class="jrn-price jrn-price-budget">${escHtml(slot.est_cost || '')}</span>
+              </div>
+              <div class="jrn-checkin-meta">${tIcon} ${escHtml(slot.transport || '')}</div>
+              <p class="jrn-notes">${escHtml(slot.description)}</p>
+              <p style="font-size:11px;color:var(--terracotta);font-style:italic;margin-top:2px">✨ ${escHtml(slot.why_it_fits || '')}</p>
+            </div>
+          </div>`;
+      }).join('');
+
+      return `
+        <div class="jrn-trip" style="margin-bottom:0;border-radius:0;border-left:none;border-right:none;border-top:none">
+          <div class="jrn-cats" style="background:var(--gold-light)">
+            <span class="day-num">Day ${day.day}</span>
+            <span style="font-family:var(--font-display);font-size:14px;font-weight:600">${escHtml(day.title)}</span>
+            <span style="font-size:11px;color:var(--muted);margin-left:auto">${escHtml(day.theme || '')}</span>
+          </div>
+          <div class="jrn-timeline">${slotsHtml}</div>
+        </div>`;
+    }).join('');
+
+    const gemsHtml = (data.hidden_gems || [])
+      .map(g => `<li>💎 ${escHtml(g)}</li>`).join('');
+    const buyHtml = (data.what_to_buy || [])
+      .map(b => `<li>🛍️ ${escHtml(b)}</li>`).join('');
+    const packHtml = (data.packing_tips || [])
+      .map(p => `<li>🎒 ${escHtml(p)}</li>`).join('');
+
+    const heroImg = photoUrl(data.destination + ' travel cityscape', 900, 220);
+
+    return `
+      <div class="jrn-wrap">
+        <div class="jrn-trip">
+          <div class="jrn-hero">
+            <img src="${heroImg}" onerror="this.style.display='none'" loading="lazy" />
+            <div class="jrn-hero-overlay">
+              <h3 class="jrn-trip-name">${escHtml(data.destination)}</h3>
+              <p class="jrn-dates">📅 ${data.duration_days}-day trip · ${escHtml(data.travel_month || '')}</p>
+              <p class="jrn-count">🌤 ${escHtml(data.weather_summary || '')}</p>
+            </div>
+          </div>
+          <div class="jrn-cats">
+            ${tagPills}
+          </div>
+          ${data.personalisation_note ? `
+          <div style="padding:10px 14px;background:var(--gold-light);border-bottom:1px solid var(--border);
+            font-size:12px;color:#7a5a10;font-style:italic">
+            💬 ${escHtml(data.personalisation_note)}
+          </div>` : ''}
+          ${daysHtml}
+          ${gemsHtml || buyHtml || packHtml ? `
+          <div class="jrn-cats" style="flex-direction:column;align-items:flex-start;gap:10px">
+            ${gemsHtml ? `<div><strong style="font-size:12px">💎 Hidden Gems</strong><ul class="itin-list" style="margin-top:4px">${gemsHtml}</ul></div>` : ''}
+            ${buyHtml  ? `<div><strong style="font-size:12px">🛍️ What to Buy</strong><ul class="itin-list" style="margin-top:4px">${buyHtml}</ul></div>` : ''}
+            ${packHtml ? `<div><strong style="font-size:12px">🎒 What to Pack</strong><ul class="itin-list" style="margin-top:4px">${packHtml}</ul></div>` : ''}
+          </div>` : ''}
+        </div>
+      </div>`;
+  }
+  $input.addEventListener('input', () => {
+    $input.style.height = 'auto';
+    $input.style.height = Math.min($input.scrollHeight, 120) + 'px';
+  });
+
+  $input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // Initial sidebar load
+  refreshSidebar();
+</script>
+</body>
+</html>

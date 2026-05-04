@@ -1,0 +1,14 @@
+[project]
+name = "travel-vibe-agent"
+version = "0.1.0"
+description = "AI-powered travel agent that learns your travel style from past trips and plans personalized itineraries for new destinations."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "google-cloud-aiplatform>=1.50.0",
+    "google-auth>=2.28.0",
+    "httpx>=0.27.0",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.6.0",
+]
