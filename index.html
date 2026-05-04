@@ -187,7 +187,7 @@
 
   /* Vibe profile card */
   .vibe-card {
-    margin: 0 16px 16px;
+    margin: 0 0 4px 0;
     background: linear-gradient(135deg, rgba(196,98,45,0.15), rgba(90,122,94,0.12));
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: var(--r-sm);
@@ -841,6 +841,11 @@
       </div>
 
       <div class="trips-panel" id="sidebar-trips">
+        <div class="vibe-card" id="vibe-sidebar" style="display:none;margin-bottom:12px">
+          <div class="vibe-card-label">✦ Your vibe</div>
+          <div class="vibe-summary" id="vibe-summary-text"></div>
+          <div class="vibe-tags" id="vibe-tags-list"></div>
+        </div>
         <div class="quick-label">Recent trips</div>
         <div id="trip-list" style="color:rgba(245,240,232,0.3);font-size:12px;padding:8px">
           No trips logged yet
@@ -849,12 +854,6 @@
         <div id="planned-list" style="color:rgba(245,240,232,0.3);font-size:12px;padding:8px">
           No planned trips yet
         </div>
-      </div>
-
-      <div class="vibe-card" id="vibe-sidebar" style="display:none">
-        <div class="vibe-card-label">✦ Your vibe</div>
-        <div class="vibe-summary" id="vibe-summary-text"></div>
-        <div class="vibe-tags" id="vibe-tags-list"></div>
       </div>
     </div>
   </aside>
